@@ -9,7 +9,7 @@ guarantor = ctrl.Antecedent(np.arange(0, 2, 1), 'guarantor')  # 0 = no, 1 = yes
 financial_records = ctrl.Antecedent(np.arange(0, 100, 1), 'financial_records')  # 0-100 trust level
 farming_history = ctrl.Antecedent(np.arange(0, 100, 1), 'farming_history')  # 0-100 trust level
 bank_statements = ctrl.Antecedent(np.arange(0, 100, 1), 'bank_statements')  # 0-100 trust level
-inputs_required = ctrl.Antecedent(np.arange(0, 100, 1), 'inputs_required')  # Cost per acre (scaled)
+cost_per_acre = ctrl.Antecedent(np.arange(0, 100, 1), 'cost_per_acre')  # Cost per acre (scaled)
 market = ctrl.Antecedent(np.arange(0, 3, 1), 'market')  # 0=direct, 1=middleman, 2=processor
 land_acreage = ctrl.Antecedent(np.arange(0, 6, 1), 'land_acreage')  # Size in acres (scaled)
 rainfall = ctrl.Antecedent(np.arange(0, 500, 1), 'rainfall')  # Average rainfall (cm)
@@ -45,9 +45,9 @@ bank_statements['poor'] = fuzz.trimf(bank_statements.universe, [0, 0, 50])
 bank_statements['average'] = fuzz.trimf(bank_statements.universe, [30, 50, 70])
 bank_statements['good'] = fuzz.trimf(bank_statements.universe, [60, 100, 100])
 
-inputs_required['low'] = fuzz.trimf(inputs_required.universe, [0, 0, 50])
-inputs_required['medium'] = fuzz.trimf(inputs_required.universe, [30, 50, 70])
-inputs_required['high'] = fuzz.trimf(inputs_required.universe, [60, 100, 100])
+cost_per_acre['low'] = fuzz.trimf(cost_per_acre.universe, [0, 0, 50])
+cost_per_acre['medium'] = fuzz.trimf(cost_per_acre.universe, [30, 50, 70])
+cost_per_acre['high'] = fuzz.trimf(cost_per_acre.universe, [60, 100, 100])
 
 market['direct'] = fuzz.trimf(market.universe, [0, 0, 1])
 market['middleman'] = fuzz.trimf(market.universe, [1, 1, 2])
@@ -80,13 +80,50 @@ risk['low'] = fuzz.trimf(risk.universe, [0, 0, 4])
 risk['medium'] = fuzz.trimf(risk.universe, [3, 5, 7])
 risk['high'] = fuzz.trimf(risk.universe, [6, 10, 10])
 
-# Define fuzzy rules
 rules = [
+    # Existing rules
     ctrl.Rule(age['young'] & crop_season['high'] & guarantor['yes'] & financial_records['good'] & farming_history['good'] & bank_statements['good'] & market['processor'], risk['low']),
     ctrl.Rule(age['old'] & crop_season['low'] & guarantor['no'] & financial_records['poor'], risk['high']),
     ctrl.Rule(age['middle_aged'] & crop_season['medium'] & financial_records['average'] & market['middleman'] & rainfall['medium'], risk['medium']),
-    # Add more rules as needed to cover different combinations
+    
+    # Additional rules
+    # Scenario where the farmer is young, has good financial records but high costs per acre
+    ctrl.Rule(age['young'] & cost_per_acre['high'] & financial_records['good'], risk['medium']),
+    
+    # Scenario where the farmer is old with low rainfall and high annual expenditure
+    ctrl.Rule(age['old'] & rainfall['low'] & annual_expenditure['high'], risk['high']),
+    
+    # Scenario where the farmer is middle-aged, has stable income source and insured
+    ctrl.Rule(age['middle_aged'] & income_source['stable'] & insurance['yes'], risk['low']),
+    
+    # Scenario where the farmer has large land acreage but poor financial records
+    ctrl.Rule(land_acreage['large'] & financial_records['poor'], risk['high']),
+    
+    # Scenario where the farmer has average financial records and average farming history with medium rainfall
+    ctrl.Rule(financial_records['average'] & farming_history['average'] & rainfall['medium'], risk['medium']),
+    
+    # Scenario where the farmer has a guarantor but poor bank statements and high costs per acre
+    ctrl.Rule(guarantor['yes'] & bank_statements['poor'] & cost_per_acre['high'], risk['high']),
+    
+    # Scenario where the farmer is young with medium temperature and high land acreage
+    ctrl.Rule(age['young'] & temperature['medium'] & land_acreage['large'], risk['medium']),
+    
+    # Scenario where the farmer has a direct market and average rainfall with high annual expenditure
+    ctrl.Rule(market['direct'] & rainfall['medium'] & annual_expenditure['high'], risk['medium']),
+    
+    # Scenario where the farmer has poor financial records but good farming history and low costs per acre
+    ctrl.Rule(financial_records['poor'] & farming_history['good'] & cost_per_acre['low'], risk['medium']),
+    
+    # Scenario where the farmer is old, has poor insurance coverage and low cost per acre
+    ctrl.Rule(age['old'] & insurance['no'] & cost_per_acre['low'], risk['high']),
+    
+    # Scenario where the farmer is middle-aged with good bank statements and direct market
+    ctrl.Rule(age['middle_aged'] & bank_statements['good'] & market['direct'], risk['low']),
 ]
+
+# Create control system
+risk_ctrl = ctrl.ControlSystem(rules)
+risk_simulation = ctrl.ControlSystemSimulation(risk_ctrl)
 
 # Create control system
 risk_ctrl = ctrl.ControlSystem(rules)
@@ -102,14 +139,14 @@ def assess_risk(farmer_data):
 # Example farmer data (you can create real inputs as per your use case)
 farmer_data = {
     'age': 30,
-    'crop_season': 70,
+    'crop_season': 0,
     'guarantor': 1,
     'financial_records': 80,
     'farming_history': 90,
     'bank_statements': 85,
-    'inputs_required': 40,
+    'cost_per_acre': 40,
     'market': 2,
-    'land_acreage': 25,
+    'land_acreage': 5,
     'rainfall': 300,
     'temperature': 25,
     'income_source': 70,
